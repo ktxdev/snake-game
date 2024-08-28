@@ -1,7 +1,9 @@
 import sys
+import math
 import pygame
 
 from enum import Enum
+from random import randrange
 from collections import deque
 
 # Initialize pygame
@@ -42,6 +44,23 @@ snake_x = (MARGIN_LEFT + (GRID_WIDTH / 2))
 
 clock = pygame.time.Clock()
 
+food_x = randrange(MARGIN_LEFT, MARGIN_LEFT + GRID_WIDTH, BLOCK_SIZE)
+food_y = randrange(MARGIN, MARGIN + GRID_HEIGHT, BLOCK_SIZE)
+
+game_over_font = pygame.font.Font('freesansbold.ttf', 50)
+
+def place_food(x, y):
+    rect = pygame.Rect(x, y, BLOCK_SIZE, BLOCK_SIZE)
+    pygame.draw.rect(SCREEN, (241, 162, 8), rect)
+
+def is_collision(x1, y1, x2, y2):
+    distance = math.sqrt(math.pow(x1 - x2, 2) + math.pow(y1 - y2, 2))
+
+    if distance == 0:
+        return True
+    
+    return False
+
 def init_snake(x, y):
     global snake
 
@@ -68,9 +87,17 @@ def draw_grid():
             rect = pygame.Rect(x, y, BLOCK_SIZE, BLOCK_SIZE)
             pygame.draw.rect(SCREEN, GREEN, rect, 1)
 
+def game_over():
+    x = ((GRID_WIDTH + (MARGIN * 2)) / 2) - 32
+    y = ((MARGIN + (GRID_HEIGHT / 2))) - 32
+
+    game_over_text = score_font.render("GAME OVER !!!", True, BLACK)
+    SCREEN.blit(game_over_text, (x, y))
+
 init_snake(snake_x, snake_y)
 
 running = True
+is_game_over = False
 while running:
     clock.tick(5)
 
@@ -78,65 +105,90 @@ while running:
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            pygame.quit()
-            sys.exit()
+            running = False
 
-    keys = pygame.key.get_pressed()
-    if keys[pygame.K_LEFT] and direction != Direction.RIGHT:
-        direction = Direction.LEFT
-    elif keys[pygame.K_RIGHT] and direction != Direction.LEFT:
-        direction = Direction.RIGHT
-    elif keys[pygame.K_UP] and direction != Direction.DOWN:
-        direction = Direction.UP
-    elif keys[pygame.K_DOWN] and direction != Direction.UP:
-        direction = Direction.DOWN
+    if not is_game_over:
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT] and direction != Direction.RIGHT:
+            direction = Direction.LEFT
+        elif keys[pygame.K_RIGHT] and direction != Direction.LEFT:
+            direction = Direction.RIGHT
+        elif keys[pygame.K_UP] and direction != Direction.DOWN:
+            direction = Direction.UP
+        elif keys[pygame.K_DOWN] and direction != Direction.UP:
+            direction = Direction.DOWN
 
-    # Draw grid
-    draw_grid()
+        # Draw grid
+        draw_grid()
 
-    # Display score
-    display_score(10, 10)
+        # Display score
+        display_score(10, 10)
 
-    tail = snake.pop()
+        if direction == Direction.LEFT:
+            snake_x = snake[0][0] - BLOCK_SIZE
 
-    if direction == Direction.LEFT:
-        snake_x = snake[0][0] - BLOCK_SIZE
+            if snake_x < MARGIN_LEFT:
+                snake_x = MARGIN_LEFT + GRID_WIDTH - BLOCK_SIZE
 
-        if snake_x < MARGIN_LEFT:
-            snake_x = MARGIN_LEFT + GRID_WIDTH - BLOCK_SIZE
+            snake.appendleft((snake_x, snake[0][1]))
 
-        snake.appendleft((snake_x, snake[0][1]))
+        elif direction == Direction.UP:
+            snake_y = snake[0][1] - BLOCK_SIZE
+            
+            if snake_y < MARGIN:
+                snake_y = MARGIN + GRID_HEIGHT - BLOCK_SIZE
 
-    elif direction == Direction.UP:
-        snake_y = snake[0][1] - BLOCK_SIZE
-        
-        if snake_y < MARGIN:
-            snake_y = MARGIN + GRID_HEIGHT - BLOCK_SIZE
+            snake.appendleft((snake[0][0], snake_y))
 
-        snake.appendleft((snake[0][0], snake_y))
+        elif direction == Direction.RIGHT:
+            snake_x = snake[0][0] + BLOCK_SIZE
 
-    elif direction == Direction.RIGHT:
-        snake_x = snake[0][0] + BLOCK_SIZE
+            if snake_x > (WINDOW_WIDTH - MARGIN - BLOCK_SIZE):
+                snake_x = MARGIN_LEFT
 
-        if snake_x > (WINDOW_WIDTH - MARGIN - BLOCK_SIZE):
-            snake_x = MARGIN_LEFT
+            snake.appendleft((snake_x, snake[0][1]))
 
-        snake.appendleft((snake_x, snake[0][1]))
+        elif direction == Direction.DOWN:
+            snake_y = snake[0][1] + BLOCK_SIZE
 
-    elif direction == Direction.DOWN:
-        snake_y = snake[0][1] + BLOCK_SIZE
+            if snake_y > (WINDOW_HEIGHT - MARGIN - BLOCK_SIZE):
+                snake_y = MARGIN
 
-        if snake_y > (WINDOW_HEIGHT - MARGIN - BLOCK_SIZE):
-            snake_y = MARGIN
+            snake.appendleft((snake[0][0], snake_y))
 
-        snake.appendleft((snake[0][0], snake_y))
+        ate_food = is_collision(food_x, food_y, snake[0][0], snake[0][1])
+        if not ate_food:
+            snake.pop()
+        else:
+            score_value += 1
+            snake_points = set(snake)
 
+            food_x = randrange(MARGIN_LEFT, MARGIN_LEFT + GRID_WIDTH, BLOCK_SIZE)
+            food_y = randrange(MARGIN, MARGIN + GRID_HEIGHT, BLOCK_SIZE)
 
+            while((food_x, food_y) in snake_points):
+                food_x = randrange(MARGIN_LEFT, MARGIN_LEFT + GRID_WIDTH, BLOCK_SIZE)
+                food_y = randrange(MARGIN, MARGIN + GRID_HEIGHT, BLOCK_SIZE)
 
+            del snake_points
+
+        # Draw snake
+        draw_snake()
+
+        # Place food
+        place_food(food_x, food_y)
+
+        if len(snake) >= 4:
+            for i in range(4, len(snake)):
+                x, y = snake[i]
+
+                snake_ate_self = is_collision(x, y, snake[0][0], snake[0][1])
+
+                if snake_ate_self:
+                    game_over()
+                    is_game_over = True
+                    break
+
+        # Update screen
+        pygame.display.update()
     
-
-    # Draw snake
-    draw_snake()
-
-    # Update screen
-    pygame.display.update()
